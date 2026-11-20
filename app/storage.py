@@ -2,6 +2,10 @@
 import json
 import os
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.core import NGramModel
 
 
 class Store:

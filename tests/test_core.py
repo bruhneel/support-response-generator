@@ -76,8 +76,29 @@ def test_seeded_suggestions_and_stopping():
         suggest_next(prompt, model, temperature=0)
 
 
-# Milestone 4: Build a command-line interface for agents to get suggestions.
-@pytest.mark.skip(reason="remove this line when you start milestone 4")
-def test_milestone_4():
-    raise NotImplementedError("write the test for milestone 4")
+def test_cli_end_to_end(tmp_path, monkeypatch):
+    from pathlib import Path
+    import subprocess
+    import sys
 
+    root = Path(__file__).resolve().parents[1]
+    monkeypatch.setenv("PYTHONPATH", str(root))
+
+    def run(*args, input_text=None):
+        return subprocess.run(
+            [sys.executable, "-m", "app.cli", *args],
+            cwd=tmp_path, input=input_text, text=True, capture_output=True, check=False,
+        )
+
+    assert "Model not trained yet" in run("suggest", "we are").stderr
+    assert "Run prepare first" in run("train").stderr
+    assert "380 sentences" in run("prepare", "--corpus", str(root / "data/support_corpus.txt")).stdout
+    assert "137 vocabulary tokens" in run("train").stdout
+    prompt = "Thank you for contacting us, we are"
+    result = run("suggest", prompt, "--seed", "42")
+    assert result.returncode == 0
+    assert result.stdout == "Next word: happy\nDraft continuation: happy to check the return options.\n"
+    interactive = run("interactive", input_text=f"{prompt}\n/quit\n")
+    assert interactive.returncode == 0 and result.stdout in interactive.stdout
+    invalid = run("suggest", prompt, "--temperature", "nan")
+    assert invalid.returncode == 2 and "positive and finite" in invalid.stderr

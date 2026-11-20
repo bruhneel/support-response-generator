@@ -1,50 +1,53 @@
 # Support Response Generator
 
-[![Built with askThili](https://ask.thili.ai/api/v1/public/projects/tpfwk73bfu/badge.svg)](https://ask.thili.ai/b/tpfwk73bfu)
+[![Built with askThili](https://msrit.ask.thili.ai/api/v1/public/projects/tpfwk73bfu/badge.svg)](https://msrit.ask.thili.ai/b/tpfwk73bfu)
 
-This CLI tool, designed for retail customer support agents, leverages a next-word predictor to streamline response drafting. By analyzing a corpus of historical support interactions, it provides intelligent suggestions, helping agents respond to common queries more efficiently.
+Draft retail customer support replies with a local, standard-library trigram model. The default corpus models eight common support scenarios, including order status, returns, refunds, shipping delays, damage, payments, discounts, and account access.
 
-## What you are building
+## Install and run
 
-**Goal.** You will build a command-line interface tool that helps customer support agents quickly draft responses by generating next-word suggestions based on a corpus of past support interactions.
+From the repository root with Python 3.12 and Git:
 
-**Done when.** The project is done when you have prepared an anonymized corpus, implemented an n-gram model with smoothing, created a function to suggest response continuations, and built a command-line interface for agents to get these suggestions.
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+python -m app.cli hello
+pytest -q
+```
+
+Keep `.env` local. The starter's optional Ollama, Groq, and Gemini helper in `app/llm.py` remains available separately. Preparing, training, and drafting with the n-gram CLI works offline without an API key.
 
 ## Milestones
 
-Tick these off as you go, and commit after each one.
+1. **Prepare.** Run `python -m app.cli prepare` to redact and tokenize the agent replies into `artifacts/sentences.json`. To regenerate the repository corpus, run `python -m data.build_corpus`. It creates 160 fictional tickets and 160 paired replies in memory, then saves only the redacted lines. For another UTF-8 source with `Customer:` and `Agent:` lines, pass `prepare --corpus PATH`.
+2. **Train.** Run `python -m app.cli train` to build and save the trigram model to `artifacts/model.json`. The default is Laplace smoothing (`--k 1`). Use `--k 0.5` for weaker smoothing.
+3. **Suggest a continuation.** Run `python -m app.cli suggest "Thank you for contacting us, we are" --seed 42`. The draft ends at a sentence boundary or the `--words` limit. Use `--temperature` to adjust sampling. Lower values favor the most probable words.
+4. **Draft interactively.** Run `python -m app.cli interactive`, type a partial reply, and press Enter. Type `/quit` or send EOF to exit. Run `python -m app.cli --help` for the command list.
 
-- [ ] **1. Prepare an anonymized corpus of customer support interactions.**  
-      Hint: For preparing the corpus, focus on text preprocessing and tokenization techniques from the drills.
-- [ ] **2. Implement the n-gram model with smoothing.**  
-      Hint: Implement the n-gram model by counting word sequences and apply a smoothing technique like Laplace smoothing.
-- [ ] **3. Create a text generation function to suggest response continuations.**  
-      Hint: Create the generation function by sampling from the probability distribution of next words based on the n-gram model.
-- [ ] **4. Build a command-line interface for agents to get suggestions.**  
-      Hint: Build the CLI using Python's `argparse` or similar, allowing agents to input partial responses and receive suggestions.
+## Example session
 
-## Run it
+```text
+$ python -m app.cli prepare
+Prepared 380 sentences from 160 agent replies.
 
-You need Python 3.12 and git.
+$ python -m app.cli train
+Trained a trigram model with 137 vocabulary tokens.
 
-```bash
-python3.12 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-cp .env.example .env        # then choose a model; see the comments inside
-python -m app.cli hello
-pytest
+$ python -m app.cli suggest "Thank you for contacting us, we are" --seed 42
+Next word: happy
+Draft continuation: happy to check the return options.
 ```
 
-Your work goes in `app/core.py` (one stub per milestone) and `tests/test_core.py`. The first tests pass already; they
-check the plumbing.
+See the [recorded session](results/example-session.txt).
 
-## Settings and secrets
+## How it works
 
-Model settings live in `.env`, which is ignored by git. **Never commit `.env` or paste a key into code.** If a key ever
-reaches GitHub, treat it as leaked and make a new one.
+The tokenizer normalizes Unicode and punctuation, lowercases words, preserves redaction placeholders, and inserts sentence boundary markers. Training learns from agent replies only. A trigram counts a next token after two context tokens. If that context was never seen, the model tries the final token by itself, then the corpus-wide unigram counts. Start markers establish sentence context but are excluded from the prediction vocabulary.
 
-## Stretch ideas
+Without smoothing, any unseen continuation would have zero probability. Add-k assigns each possible token a positive pseudo-count. For a context with total count *N* and vocabulary size *V*, a token with count *c* has probability *(c + k) / (N + kV)*. This keeps the distribution normalized and gives unseen words a path through the reserved `<UNK>` token. The temperature transform is applied only at sampling time.
 
-- Allow agents to configure the 'n' value for the n-gram model at runtime.
-- Implement and compare another smoothing technique for the n-gram model.
-- Extend the text generation to suggest the top N most probable next words, not just one.
+## Limitations
+
+The corpus is small and templated. Two context words can produce fluent local phrases, but the model cannot follow a full conversation, check orders, or know policy. Review drafts before sending and replace any placeholders. The regex redactor recognizes common identifier formats and names in explicit introductions or greetings. It cannot guarantee anonymization of real tickets, which need a separate privacy review before sharing.

@@ -187,9 +187,3 @@ def continue_response(
         if model.n > 1:
             context = (*context, word)[-(model.n - 1):]
     return " ".join(draft)
-
-
-# --- Milestone 4: Build a command-line interface for agents to get suggestions.
-# Hint: Build the CLI using Python's `argparse` or similar, allowing agents to input partial responses and receive suggestions.
-def milestone_4():  # TODO(milestone 4)
-    raise NotImplementedError("TODO(milestone 4)")

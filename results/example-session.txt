@@ -1,0 +1,9 @@
+$ python -m app.cli prepare
+Prepared 380 sentences from 160 agent replies.
+
+$ python -m app.cli train
+Trained a trigram model with 137 vocabulary tokens.
+
+$ python -m app.cli suggest "Thank you for contacting us, we are" --seed 42
+Next word: happy
+Draft continuation: happy to check the return options.
