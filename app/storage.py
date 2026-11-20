@@ -42,3 +42,21 @@ def prepare_corpus(source: Path, destination: Path) -> tuple[int, int]:
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(prepared, ensure_ascii=False) + "\n", encoding="utf-8")
     return len(replies), len(prepared)
+
+
+def train_model(source: Path, destination: Path, n: int = 3, k: float = 1.0) -> int:
+    """Fit a model from prepared tokens and save its counts as JSON."""
+    from app.core import NGramModel
+
+    prepared = json.loads(source.read_text(encoding="utf-8"))
+    model = NGramModel(n=n, k=k).fit(prepared)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(json.dumps(model.to_record(), ensure_ascii=False) + "\n", encoding="utf-8")
+    return len(model.vocab)
+
+
+def load_model(path: Path) -> "NGramModel":
+    """Read a saved n-gram model."""
+    from app.core import NGramModel
+
+    return NGramModel.from_record(json.loads(path.read_text(encoding="utf-8")))
