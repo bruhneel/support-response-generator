@@ -1,9 +1,55 @@
-"""Your code. One stub per milestone; build them in order and keep each one small."""
+"""Preprocessing, language modeling, and sampling for support replies."""
+import re
+import unicodedata
 
-# --- Milestone 1: Prepare an anonymized corpus of customer support interactions.
-# Hint: For preparing the corpus, focus on text preprocessing and tokenization techniques from the drills.
-def milestone_1():  # TODO(milestone 1)
-    raise NotImplementedError("TODO(milestone 1)")
+START, END, UNK = "<s>", "</s>", "<UNK>"
+PLACEHOLDERS = ("<EMAIL>", "<PHONE>", "<ORDER_ID>", "<URL>", "<NAME>")
+NORMALIZE = str.maketrans({"’": "'", "‘": "'", "“": '"', "”": '"', "—": " ", "–": " "})
+REDACTIONS = (
+    (re.compile(r"\b(?:https?://|www\.)[^\s<>]+", re.I), "<URL>"),
+    (re.compile(r"\b[\w.+-]+@[\w.-]+\.[a-z]{2,}\b", re.I), "<EMAIL>"),
+    (re.compile(r"\b(?:ORD|ORDER)[-#]\s*[A-Z0-9]*\d[A-Z0-9-]*\b|(?<=order )#\s*[A-Z0-9]*\d[A-Z0-9-]*\b", re.I), "<ORDER_ID>"),
+    (re.compile(r"(?<!\w)(?:\+\d{1,3}[ .-]?)?(?:\(\d{3}\)|\d{3})[ .-]?\d{3}[ .-]?\d{4}(?!\w)"), "<PHONE>"),
+)
+NAME = re.compile(r"(\b(?i:my name is|i am|this is) |\b(?i:hi|hello|dear) +)([A-Z][a-z]+ [A-Z][a-z]+)(?=[,!.?]|$)")
+TOKENS = re.compile(r"<(?:EMAIL|PHONE|ORDER_ID|URL|NAME)>|[^\W_]+(?:'[^\W_]+)*|[.!?]+", re.I)
+
+
+def anonymize(text: str) -> str:
+    """Mask common identifiers and names in explicit introductions or greetings."""
+    text = unicodedata.normalize("NFKC", text).translate(NORMALIZE)
+    for pattern, placeholder in REDACTIONS:
+        if placeholder == "<URL>":
+            text = pattern.sub(
+                lambda match: placeholder + match[0][len(match[0].rstrip(".,!?;):")):], text
+            )
+        else:
+            text = pattern.sub(placeholder, text)
+    return NAME.sub(r"\1<NAME>", text)
+
+
+def tokenize(text: str) -> list[str]:
+    """Lowercase words, preserve placeholders and retain sentence terminators."""
+    return [
+        token.upper() if token.startswith("<") else token.lower()
+        for token in TOKENS.findall(anonymize(text))
+    ]
+
+
+def sentences(text: str) -> list[list[str]]:
+    """Return nonempty sentences with one start and end marker each."""
+    output = []
+    words = []
+    for token in tokenize(text):
+        if token[0] in ".!?":
+            if words:
+                output.append([START, *words, END])
+                words = []
+        else:
+            words.append(token)
+    if words:
+        output.append([START, *words, END])
+    return output
 
 
 # --- Milestone 2: Implement the n-gram model with smoothing.

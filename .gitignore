@@ -10,3 +10,10 @@ __pycache__/
 # Local data
 data/
 *.db
+
+# Keep only the checked-in anonymized dataset and its generator
+!data/
+data/*
+!data/support_corpus.txt
+!data/build_corpus.py
+artifacts/

@@ -24,3 +24,21 @@ class Store:
 
     def all(self) -> dict:
         return dict(sorted(self._read().items()))
+
+
+def prepare_corpus(source: Path, destination: Path) -> tuple[int, int]:
+    """Tokenize anonymized agent replies from role-prefixed support tickets."""
+    from app.core import sentences
+
+    lines = source.read_text(encoding="utf-8").splitlines()
+    replies = [
+        line.split(":", 1)[1]
+        for line in lines
+        if line.partition(":")[0].strip().lower() == "agent"
+    ]
+    prepared = [tokens for reply in replies for tokens in sentences(reply)]
+    if not prepared:
+        raise ValueError("Corpus needs at least one nonempty Agent: line.")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    destination.write_text(json.dumps(prepared, ensure_ascii=False) + "\n", encoding="utf-8")
+    return len(replies), len(prepared)
