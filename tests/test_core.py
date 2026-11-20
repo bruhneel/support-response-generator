@@ -58,10 +58,22 @@ def test_counts_smoothing_and_backoff():
     assert unigram.prob("one", ("arbitrary",)) == pytest.approx(1.5 / 6)
 
 
-# Milestone 3: Create a text generation function to suggest response continuations.
-@pytest.mark.skip(reason="remove this line when you start milestone 3")
-def test_milestone_3():
-    raise NotImplementedError("write the test for milestone 3")
+def test_seeded_suggestions_and_stopping():
+    from app.core import NGramModel, continue_response, suggest_next
+
+    model = NGramModel().fit(sentences("We can help. We can check.") * 15)
+    prompt = "Thanks!  WE can"
+    choice = suggest_next(prompt, model, seed=17)
+    assert choice in model.vocab
+    assert choice == suggest_next("we can", model, seed=17)
+    assert continue_response(prompt, model, seed=17) == continue_response(prompt, model, seed=17)
+    assert suggest_next("we can help", model, seed=17, temperature=0.01) == END
+    assert continue_response("we can help", model, seed=17, temperature=0.01) == ""
+    assert continue_response("we can", model, max_words=1, seed=17, temperature=0.01) in {"help", "check"}
+    assert continue_response("we can", model, seed=17, temperature=0.01) in {"help.", "check."}
+    assert continue_response("we can", model, max_words=0) == ""
+    with pytest.raises(ValueError, match="Temperature"):
+        suggest_next(prompt, model, temperature=0)
 
 
 # Milestone 4: Build a command-line interface for agents to get suggestions.

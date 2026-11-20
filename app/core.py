@@ -2,6 +2,7 @@
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Sequence
 import math
+import random
 import re
 import unicodedata
 
@@ -142,10 +143,50 @@ class NGramModel:
         return model
 
 
-# --- Milestone 3: Create a text generation function to suggest response continuations.
-# Hint: Create the generation function by sampling from the probability distribution of next words based on the n-gram model.
-def milestone_3():  # TODO(milestone 3)
-    raise NotImplementedError("TODO(milestone 3)")
+def _prompt_context(partial_text: str, order: int) -> tuple[str, ...]:
+    words = [START] * (order - 1)
+    for token in tokenize(partial_text):
+        if token[0] in ".!?":
+            words = [START] * (order - 1)
+        else:
+            words.append(token)
+    return tuple(words[max(0, len(words) - order + 1):])
+
+
+def _sample(model: NGramModel, context: Sequence[str], rng: random.Random, temperature: float) -> str:
+    if not math.isfinite(temperature) or temperature <= 0:
+        raise ValueError("Temperature must be positive and finite.")
+    probabilities = model.distribution(context)
+    peak = math.log(max(probabilities.values()))
+    weights = [math.exp((math.log(p) - peak) / temperature) for p in probabilities.values()]
+    return rng.choices(model.vocab, weights=weights, k=1)[0]
+
+
+def suggest_next(
+    partial_text: str, model: NGramModel, *, seed: int | None = None, temperature: float = 1.0
+) -> str:
+    """Sample one token given the final words of the active sentence."""
+    return _sample(model, _prompt_context(partial_text, model.n), random.Random(seed), temperature)
+
+
+def continue_response(
+    partial_text: str, model: NGramModel, max_words: int = 16, *,
+    seed: int | None = None, temperature: float = 1.0
+) -> str:
+    """Return only the drafted suffix, stopping at sentence end or the word limit."""
+    if max_words < 0:
+        raise ValueError("The word limit must be non-negative.")
+    rng = random.Random(seed)
+    context = _prompt_context(partial_text, model.n)
+    draft: list[str] = []
+    for _ in range(max_words):
+        word = _sample(model, context, rng, temperature)
+        if word == END:
+            return " ".join(draft) + ("." if draft else "")
+        draft.append(word)
+        if model.n > 1:
+            context = (*context, word)[-(model.n - 1):]
+    return " ".join(draft)
 
 
 # --- Milestone 4: Build a command-line interface for agents to get suggestions.
